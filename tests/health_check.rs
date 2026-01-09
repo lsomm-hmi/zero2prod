@@ -3,6 +3,22 @@ use axum::http::{Request, StatusCode};
 use tower::ServiceExt; //for `oneshot`
 use zero2prod::app;
 
+async fn spawn_app() -> String {
+    // Bind to a random free port
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+
+    // Build the app
+    let app = app();
+
+    // Spawn the server
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.expect("server crashed");
+    });
+
+    format!("http://{addr}")
+}
+
 // In-process test using Axum + Tower. Faster, but doesn't utilize TCP/HTTP
 #[tokio::test]
 async fn health_check_works() {
@@ -44,18 +60,53 @@ async fn health_check_integration_test() {
     assert_eq!(Some(0), response.content_length());
 }
 
-async fn spawn_app() -> String {
-    // Bind to a random free port
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
+#[tokio::test]
+async fn subscribe_returns_200_for_valid_form_data() {
+    let addr = spawn_app().await;
 
-    // Build the app
-    let app = app();
+    // Generate Http client
+    let client = reqwest::Client::new();
 
-    // Spawn the server
-    tokio::spawn(async move {
-        axum::serve(listener, app).await.expect("server crashed");
-    });
+    // Fetch response
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+    let response = client
+        .post(&format!("{addr}/subscriptions"))
+        .header("Content-Type", "application/x-www-form-urlencoded")
+        .body(body)
+        .send()
+        .await
+        .expect("Failed to execute request");
 
-    format!("http://{addr}")
+    // Assert
+    assert_eq!(StatusCode::OK, response.status());
+}
+
+#[tokio::test]
+async fn subscribe_returns_400_when_data_missing() {
+    let addr = spawn_app().await;
+
+    // Generate Http client
+    let client = reqwest::Client::new();
+    let test_cases = vec![
+        ("name=le%20guin", "missing the email"),
+        ("email=ursula_le_guin%40gmail.com", "missing the name"),
+        ("", "missing both name and email"),
+    ];
+
+    for (invalid_body, error_message) in test_cases {
+        // Fetch response
+        let response = client
+            .post(&format!("{addr}/subscriptions"))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(invalid_body)
+            .send()
+            .await
+            .expect("Failed to execute request");
+
+        assert_eq!(
+            StatusCode::BAD_REQUEST,
+            response.status(),
+            "The API did not fail with 400 Bad Request when the payload was {error_message}"
+        );
+    }
 }

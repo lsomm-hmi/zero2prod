@@ -1,4 +1,15 @@
-use axum::{Router, debug_handler, extract::Path, http::StatusCode, routing::get};
+use axum::{
+    Router, debug_handler,
+    extract::{Form, Path},
+    http::StatusCode,
+    routing::{get, post},
+};
+
+#[derive(serde::Deserialize)]
+struct SubscribeFormData {
+    name: String,
+    email: String,
+}
 
 #[debug_handler]
 async fn greet(path: Option<Path<String>>) -> String {
@@ -8,6 +19,10 @@ async fn greet(path: Option<Path<String>>) -> String {
 }
 
 async fn health_check() -> StatusCode {
+    StatusCode::OK
+}
+
+async fn subscribe(Form(sub_info): Form<SubscribeFormData>) -> StatusCode {
     StatusCode::OK
 }
 
@@ -22,5 +37,6 @@ pub fn app() -> Router {
     Router::new()
         .route("/", get(greet))
         .route("/health_check", get(health_check))
+        .route("/subscriptions", post(subscribe))
         .route("/{name}", get(greet))
 }
