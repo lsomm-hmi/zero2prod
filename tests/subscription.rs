@@ -1,8 +1,8 @@
 mod common;
 
-use axum::{http::StatusCode};
+use axum::http::StatusCode;
 use sqlx::{Connection, PgConnection};
-use zero2prod::configuration::{get_configuration};
+use zero2prod::configuration::get_configuration;
 
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_form_data() {
