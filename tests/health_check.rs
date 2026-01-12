@@ -8,7 +8,8 @@ use zero2prod::startup::app;
 // In-process test using Axum + Tower. Faster, but doesn't utilize TCP/HTTP
 #[tokio::test]
 async fn health_check_works() {
-    let app = app();
+    let app_state = common::make_app_state().await;
+    let app = app(app_state);
 
     // `Router` implements `tower::Service<Request<Body>>` so we can
     // call it like any tower service, no need to run an HTTP server.

@@ -1,18 +1,19 @@
-use crate::routes::*;
 use axum::{
     Router,
     routing::{get, post},
 };
+use tokio::net::TcpListener;
 
-pub async fn run(address: String) {
-    let app = app();
+use crate::routes::{health_check, subscribe};
+use crate::state::AppState;
 
-    let listener = tokio::net::TcpListener::bind(address).await.unwrap();
-    let _ = axum::serve(listener, app).await;
-}
-
-pub fn app() -> Router {
+pub fn app(state: AppState) -> Router {
     Router::new()
         .route("/health_check", get(health_check))
         .route("/subscriptions", post(subscribe))
+        .with_state(state)
+}
+
+pub async fn run(listener: TcpListener, state: AppState) -> Result<(), std::io::Error> {
+    axum::serve(listener, app(state)).await
 }
