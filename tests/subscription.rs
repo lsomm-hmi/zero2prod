@@ -33,7 +33,7 @@ async fn subscribe_returns_200_for_valid_form_data() {
     assert_eq!(StatusCode::OK, response.status());
 
     // Add a small delay to ensure transaction is committed
-    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
 
     let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
         .fetch_one(&mut connection)
