@@ -30,14 +30,14 @@ async fn health_check_works() {
 // Integration Testing which generates an Http server to simulate external clients
 #[tokio::test]
 async fn health_check_integration_test() {
-    let addr = common::spawn_app().await;
+    let test_app = common::spawn_app().await;
 
     // Generate Http client
     let client = reqwest::Client::new();
 
     // Fetch response (reqwest)
     let response = client
-        .get(format!("{addr}/health_check"))
+        .get(format!("{}/health_check", &test_app.address))
         .send()
         .await
         .expect("Failed to execute request.");

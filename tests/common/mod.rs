@@ -6,13 +6,20 @@ use zero2prod::{
     state::AppState,
 };
 
-pub async fn spawn_app() -> String {
+pub struct TestApp {
+    pub address: String,
+    pub db_pool: PgPool,
+}
+
+pub async fn spawn_app() -> TestApp {
     // Bind to a random free port
     let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
+    let local_addr = listener.local_addr().unwrap();
+    let address = format!("http://{local_addr}");
 
     // Build the app
     let app_state = make_app_state().await;
+    let db_pool = app_state.db.clone();
     let app = app(app_state);
 
     // Spawn the server
@@ -20,7 +27,7 @@ pub async fn spawn_app() -> String {
         axum::serve(listener, app).await.expect("server crashed");
     });
 
-    format!("http://{addr}")
+    TestApp { address, db_pool }
 }
 
 pub async fn make_app_state() -> AppState {

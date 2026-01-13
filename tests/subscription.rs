@@ -1,20 +1,20 @@
 mod common;
 
 use axum::http::StatusCode;
-use sqlx::{Connection, PgConnection};
-use zero2prod::configuration::get_configuration;
+// use sqlx::{Connection, PgConnection};
+// use zero2prod::configuration::get_configuration;
 
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_form_data() {
     // Arrange
-    let addr = common::spawn_app().await;
-    let configuration = get_configuration().expect("Failed to read configuration.");
-    let connection_string = configuration.database.connection_string();
+    let test_app = common::spawn_app().await;
+    // let configuration = get_configuration().expect("Failed to read configuration.");
+    // let connection_string = configuration.database.connection_string();
     // The `Connection` trait MUST be in scope for us to invoke
     // `PgConnection::connect` - it is not an inherent method of the struct!
-    let mut connection = PgConnection::connect(&connection_string)
-        .await
-        .expect("Failed to connect to Postgres.");
+    // let mut connection = PgConnection::connect(&connection_string)
+    //     .await
+    //     .expect("Failed to connect to Postgres.");
 
     // Generate Http client
     let client = reqwest::Client::new();
@@ -22,7 +22,7 @@ async fn subscribe_returns_200_for_valid_form_data() {
     // Fetch response
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
     let response = client
-        .post(&format!("{addr}/subscriptions"))
+        .post(&format!("{}/subscriptions", &test_app.address))
         .header("Content-Type", "application/x-www-form-urlencoded")
         .body(body)
         .send()
@@ -32,11 +32,8 @@ async fn subscribe_returns_200_for_valid_form_data() {
     // Assert
     assert_eq!(StatusCode::OK, response.status());
 
-    // Add a small delay to ensure transaction is committed
-    tokio::time::sleep(tokio::time::Duration::from_millis(5000)).await;
-
     let saved = sqlx::query!("SELECT email, name FROM subscriptions",)
-        .fetch_one(&mut connection)
+        .fetch_one(&test_app.db_pool)
         .await
         .expect("Failed to fetch saved subscription");
 
@@ -46,7 +43,7 @@ async fn subscribe_returns_200_for_valid_form_data() {
 
 #[tokio::test]
 async fn subscribe_returns_422_when_data_missing() {
-    let addr = common::spawn_app().await;
+    let test_app = common::spawn_app().await;
 
     // Generate Http client
     let client = reqwest::Client::new();
@@ -59,7 +56,7 @@ async fn subscribe_returns_422_when_data_missing() {
     for (invalid_body, error_message) in test_cases {
         // Fetch response
         let response = client
-            .post(&format!("{addr}/subscriptions"))
+            .post(&format!("{}/subscriptions", &test_app.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(invalid_body)
             .send()
