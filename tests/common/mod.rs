@@ -1,10 +1,27 @@
 use sqlx::{Connection, Executor, PgConnection, PgPool};
+use std::sync::LazyLock;
 use uuid::Uuid;
 use zero2prod::{
     configuration::{DatabaseSettings, get_configuration},
     startup::app,
     state::AppState,
+    telemetry::{get_subscriber, init_subscriber},
 };
+
+// Ensure that the `tracing` stack is only initialized once since spawn_app is run across multiple tests
+static TRACING: LazyLock<()> = LazyLock::new(|| {
+    let default_filter_level = "zero2prod=info,tower_http=warn".to_string();
+    let subscriber_name = "zero2prod".to_string();
+
+    // Set the TEST_LOG env variable if you wish to see log output. Otherwise the sink writes the logs to the void
+    if std::env::var("TEST_LOG").is_ok() {
+        let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::stdout);
+        init_subscriber(subscriber);
+    } else {
+        let subscriber = get_subscriber(subscriber_name, default_filter_level, std::io::sink);
+        init_subscriber(subscriber);
+    }
+});
 
 #[allow(dead_code)] // Quiet errors warning about dead code. Struct used in test functions.
 pub struct TestApp {
@@ -13,6 +30,8 @@ pub struct TestApp {
 }
 
 pub async fn spawn_app() -> TestApp {
+    LazyLock::force(&TRACING);
+
     // Bind to a random free port
     let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
     let local_addr = listener.local_addr().unwrap();
