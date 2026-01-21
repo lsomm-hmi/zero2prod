@@ -1,7 +1,5 @@
-use std::time::Duration;
-
-use secrecy::ExposeSecret;
 use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
 use tokio::net::TcpListener;
 
 use zero2prod::configuration::get_configuration;
@@ -23,8 +21,7 @@ async fn main() -> Result<(), std::io::Error> {
 
     let db = PgPoolOptions::new()
         .acquire_timeout(Duration::from_secs(10))
-        .connect_lazy(config.database.connection_string().expose_secret())
-        .expect("Failed to connect to Postgres.");
+        .connect_lazy_with(config.database.with_db());
 
     let state = AppState { db, config };
 
