@@ -66,7 +66,36 @@ async fn subscribe_returns_422_when_data_missing() {
         assert_eq!(
             StatusCode::UNPROCESSABLE_ENTITY,
             response.status(),
-            "The API did not fail with 400 Bad Request when the payload was {error_message}"
+            "The API did not fail with 422 Unprocessable Entity when the payload was {error_message}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn subscribe_returns_400_for_present_invalid_fields() {
+    let test_app = common::spawn_app().await;
+
+    // Generate Http client
+    let client = reqwest::Client::new();
+    let test_cases = vec![
+        ("name=&email=ursula_le_guin%40gmail.com", "empty name"),
+        ("name=Ursula&email=", "empty email"),
+        ("name=Ursula&email=definitely-not-an-email", "invalid email"),
+    ];
+
+    for (body, description) in test_cases {
+        let response = client
+            .post(&format!("{}/subscriptions", &test_app.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request");
+
+        assert_eq!(
+            StatusCode::BAD_REQUEST,
+            response.status(),
+            "The API did not return a 400 Bad Request when the payload was {description}."
         );
     }
 }

@@ -1,3 +1,4 @@
+use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
 use crate::state::AppState;
 use axum::{
     extract::{Form, State},
@@ -28,7 +29,19 @@ pub async fn subscribe(
 ) -> StatusCode {
     let db_pool = &state.db;
 
-    match insert_subscriber(db_pool, &sub_info).await {
+    let name = match SubscriberName::parse(sub_info.name) {
+        Ok(name) => name,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+
+    let email = match SubscriberEmail::parse(sub_info.email) {
+        Ok(email) => email,
+        Err(_) => return StatusCode::BAD_REQUEST,
+    };
+
+    let new_subscriber = NewSubscriber { email, name };
+
+    match insert_subscriber(db_pool, &new_subscriber).await {
         Ok(_) => StatusCode::OK,
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
     }
@@ -36,11 +49,11 @@ pub async fn subscribe(
 
 #[tracing::instrument(
     name = "Saving new subscriber details in the database",
-    skip(db_pool, sub_info)
+    skip(db_pool, new_subscriber)
 )]
 pub async fn insert_subscriber(
     db_pool: &Pool<Postgres>,
-    sub_info: &SubscribeFormData,
+    new_subscriber: &NewSubscriber,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
@@ -48,8 +61,8 @@ pub async fn insert_subscriber(
         VALUES ($1, $2, $3, $4)
         "#,
         Uuid::new_v4(),
-        sub_info.email,
-        sub_info.name,
+        new_subscriber.email.as_ref(),
+        new_subscriber.name.as_ref(),
         Utc::now()
     )
     .execute(db_pool)
