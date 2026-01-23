@@ -4,11 +4,15 @@ use sqlx::{
     ConnectOptions,
     postgres::{PgConnectOptions, PgSslMode},
 };
+use validator::ValidationErrors;
+
+use crate::domain::SubscriberEmail;
 
 #[derive(serde::Deserialize, Clone)]
 pub struct Settings {
     pub database: DatabaseSettings,
     pub application: ApplicationSettings,
+    pub email_client: EmailClientSettings,
 }
 
 #[derive(serde::Deserialize, Clone)]
@@ -41,6 +45,18 @@ impl DatabaseSettings {
         self.without_db()
             .database(&self.database_name)
             .log_statements(tracing::log::LevelFilter::Trace)
+    }
+}
+
+#[derive(serde::Deserialize, Clone)]
+pub struct EmailClientSettings {
+    pub base_url: String,
+    pub sender_email: String,
+}
+
+impl EmailClientSettings {
+    pub fn sender(&self) -> Result<SubscriberEmail, ValidationErrors> {
+        SubscriberEmail::parse(self.sender_email.clone())
     }
 }
 

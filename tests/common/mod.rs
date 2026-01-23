@@ -3,6 +3,7 @@ use std::sync::LazyLock;
 use uuid::Uuid;
 use zero2prod::{
     configuration::{DatabaseSettings, get_configuration},
+    email_client::EmailClient,
     startup::app,
     state::AppState,
     telemetry::{get_subscriber, init_subscriber},
@@ -58,7 +59,14 @@ pub async fn make_app_state() -> AppState {
 
     let db = configure_database(&config.database).await;
 
-    let state = AppState { db, config };
+    let sender_email = config.email_client.sender()
+        .expect("Invalid sender email address.");
+    let email_client = EmailClient::new(
+        config.email_client.base_url,
+        sender_email
+    );
+
+    let state = AppState { db, email_client };
     state
 }
 
