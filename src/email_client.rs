@@ -35,8 +35,8 @@ mod tests {
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
     use fake::{Fake, Faker};
-    use wiremock::{Mock, MockServer, ResponseTemplate};
     use wiremock::matchers::any;
+    use wiremock::{Mock, MockServer, ResponseTemplate};
 
     use crate::{domain::SubscriberEmail, email_client::EmailClient};
 

@@ -24,19 +24,15 @@ async fn main() -> Result<(), std::io::Error> {
         .acquire_timeout(Duration::from_secs(10))
         .connect_lazy_with(config.database.with_db());
 
-    let sender_email = config.email_client.sender()
+    let sender_email = config
+        .email_client
+        .sender()
         .expect("Invalid sender email address.");
-    let email_client = EmailClient::new(
-        config.email_client.base_url,
-        sender_email
-    );
+    let email_client = EmailClient::new(config.email_client.base_url, sender_email);
 
     let state = AppState { db, email_client };
 
-    let addr = format!(
-        "{}:{}",
-        config.application.host, config.application.port
-    );
+    let addr = format!("{}:{}", config.application.host, config.application.port);
     let listener = TcpListener::bind(addr).await?;
 
     run(listener, state).await
