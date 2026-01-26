@@ -1,4 +1,4 @@
-mod common;
+use crate::helpers;
 
 use axum::http::StatusCode;
 // use sqlx::{Connection, PgConnection};
@@ -7,7 +7,7 @@ use axum::http::StatusCode;
 #[tokio::test]
 async fn subscribe_returns_200_for_valid_form_data() {
     // Arrange
-    let test_app = common::spawn_app().await;
+    let test_app = helpers::spawn_app().await;
     // let configuration = get_configuration().expect("Failed to read configuration.");
     // let connection_string = configuration.database.connection_string();
     // The `Connection` trait MUST be in scope for us to invoke
@@ -43,7 +43,7 @@ async fn subscribe_returns_200_for_valid_form_data() {
 
 #[tokio::test]
 async fn subscribe_returns_422_when_data_missing() {
-    let test_app = common::spawn_app().await;
+    let test_app = helpers::spawn_app().await;
 
     // Generate Http client
     let client = reqwest::Client::new();
@@ -73,7 +73,7 @@ async fn subscribe_returns_422_when_data_missing() {
 
 #[tokio::test]
 async fn subscribe_returns_400_for_present_invalid_fields() {
-    let test_app = common::spawn_app().await;
+    let test_app = helpers::spawn_app().await;
 
     // Generate Http client
     let client = reqwest::Client::new();

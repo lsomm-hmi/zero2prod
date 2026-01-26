@@ -1,4 +1,4 @@
-mod common;
+use crate::helpers;
 
 use axum::body::{Body, HttpBody};
 use axum::http::{Request, StatusCode};
@@ -8,7 +8,7 @@ use zero2prod::startup::app;
 // In-process test using Axum + Tower. Faster, but doesn't utilize TCP/HTTP
 #[tokio::test]
 async fn health_check_works() {
-    let app_state = common::make_app_state().await;
+    let app_state = helpers::make_app_state().await;
     let app = app(app_state);
 
     // `Router` implements `tower::Service<Request<Body>>` so we can
@@ -30,7 +30,7 @@ async fn health_check_works() {
 // Integration Testing which generates an Http server to simulate external clients
 #[tokio::test]
 async fn health_check_integration_test() {
-    let test_app = common::spawn_app().await;
+    let test_app = helpers::spawn_app().await;
 
     // Generate Http client
     let client = reqwest::Client::new();
