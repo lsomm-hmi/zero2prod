@@ -3,9 +3,7 @@ use std::sync::LazyLock;
 use uuid::Uuid;
 use zero2prod::{
     configuration::{DatabaseSettings, get_configuration},
-    email_client::EmailClient,
-    startup::app,
-    state::AppState,
+    startup::Application,
     telemetry::{get_subscriber, init_subscriber},
 };
 
@@ -30,63 +28,58 @@ pub struct TestApp {
     pub db_pool: PgPool,
 }
 
+impl TestApp {
+    pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
+        reqwest::Client::new()
+            .post(&format!("{}/subscriptions", &self.address))
+            .header("Content-Type", "application/x-www-form-urlencoded")
+            .body(body)
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+}
+
 pub async fn spawn_app() -> TestApp {
     LazyLock::force(&TRACING);
 
-    // Bind to a random free port
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:0").await.unwrap();
-    let local_addr = listener.local_addr().unwrap();
-    let address = format!("http://{local_addr}");
+    let host = "127.0.0.1";
+
+    let mut config = get_configuration().expect("Failed to read configuration.");
+    // Modify config for API testing
+    config.database.database_name = Uuid::new_v4().to_string();
+    config.application.host = host.to_string();
+    config.application.port = 0;
+    config.email_client.timeout_milliseconds = 250;
+
+    let db_pool = configure_database(&config.database).await;
 
     // Build the app
-    let app_state = make_app_state().await;
-    let db_pool = app_state.db.clone();
-    let app = app(app_state);
+    let app = Application::build(config)
+        .await
+        .expect("The application should build with config");
+    let address = format!("http://{}:{}", host, app.port());
 
     // Spawn the server
     tokio::spawn(async move {
-        axum::serve(listener, app).await.expect("server crashed");
+        app.run().await.expect("server crashed");
     });
 
     TestApp { address, db_pool }
 }
 
-pub async fn make_app_state() -> AppState {
-    // Panic if we cannot read configuration
-    let mut config = get_configuration().expect("Failed to read configuration.");
-    // Generate a random database name
-    config.database.database_name = Uuid::new_v4().to_string();
-
-    let db = configure_database(&config.database).await;
-
-    let sender_email = config
-        .email_client
-        .sender()
-        .expect("Invalid sender email address.");
-    let timeout = config.email_client.timeout();
-    let email_client = EmailClient::new(
-        config.email_client.base_url,
-        sender_email,
-        config.email_client.auth_token,
-        timeout,
-    );
-
-    let state = AppState { db, email_client };
-    state
-}
-
-pub async fn configure_database(config: &DatabaseSettings) -> PgPool {
+pub async fn configure_database(db_config: &DatabaseSettings) -> PgPool {
     // Create database
-    let mut connection = PgConnection::connect_with(&config.without_db())
+    let mut connection = PgConnection::connect_with(&db_config.without_db())
         .await
         .expect("Failed to connect to Postgres.");
     connection
-        .execute(format!(r#"CREATE DATABASE "{}";"#, config.database_name).as_str())
+        .execute(format!(r#"CREATE DATABASE "{}";"#, db_config.database_name).as_str())
         .await
         .expect("Failed to create database.");
 
     // Migrate database
-    let connection_pool = PgPool::connect_with(config.with_db())
+    let connection_pool = PgPool::connect_with(db_config.with_db())
         .await
         .expect("Failed to connect to Postgres");
     sqlx::migrate!("./migrations")
