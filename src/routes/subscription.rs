@@ -53,6 +53,7 @@ pub async fn subscribe(
     Form(form_data): Form<SubscribeFormData>,
 ) -> StatusCode {
     let db_pool = &state.db;
+    let email_client = &state.email_client;
 
     let new_subscriber = match form_data.try_into() {
         // The TryInto trait is automatically implemented for the corresponding type used in TryFrom
@@ -60,10 +61,29 @@ pub async fn subscribe(
         Err(_) => return StatusCode::BAD_REQUEST,
     };
 
-    match insert_subscriber(db_pool, &new_subscriber).await {
-        Ok(_) => StatusCode::OK,
-        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    // match insert_subscriber(db_pool, &new_subscriber).await {
+    //     Ok(_) => StatusCode::OK,
+    //     Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    // }
+    if insert_subscriber(db_pool, &new_subscriber).await.is_err() {
+        return StatusCode::INTERNAL_SERVER_ERROR;
     }
+
+    // Dummy email to new subscriber
+    // Ignoring email delivery errors for now
+    if email_client
+        .send_email(
+            new_subscriber.email,
+            "Welcome!",
+            "Welcome to our newsletter!",
+            "Welcome to our newsletter!",
+        )
+        .await
+        .is_err()
+    {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    StatusCode::OK
 }
 
 #[tracing::instrument(
@@ -76,8 +96,8 @@ pub async fn insert_subscriber(
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
-        INSERT INTO subscriptions (id, email, name, subscribed_at)
-        VALUES ($1, $2, $3, $4)
+        INSERT INTO subscriptions (id, email, name, subscribed_at, status)
+        VALUES ($1, $2, $3, $4, 'confirmed')
         "#,
         Uuid::new_v4(),
         new_subscriber.email.as_ref(),

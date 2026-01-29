@@ -1,6 +1,7 @@
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::sync::LazyLock;
 use uuid::Uuid;
+use wiremock::MockServer;
 use zero2prod::{
     configuration::{DatabaseSettings, get_configuration},
     startup::Application,
@@ -26,6 +27,7 @@ static TRACING: LazyLock<()> = LazyLock::new(|| {
 pub struct TestApp {
     pub address: String,
     pub db_pool: PgPool,
+    pub email_server: MockServer,
 }
 
 impl TestApp {
@@ -43,14 +45,21 @@ impl TestApp {
 pub async fn spawn_app() -> TestApp {
     LazyLock::force(&TRACING);
 
+    // Launch a mock server to mimic Postmark's API
+    let email_server = MockServer::start().await;
+
     let host = "127.0.0.1";
 
-    let mut config = get_configuration().expect("Failed to read configuration.");
-    // Modify config for API testing
-    config.database.database_name = Uuid::new_v4().to_string();
-    config.application.host = host.to_string();
-    config.application.port = 0;
-    config.email_client.timeout_milliseconds = 250;
+    let config = {
+        let mut c = get_configuration().expect("Failed to read configuration.");
+        // Modify config for API testing
+        c.database.database_name = Uuid::new_v4().to_string();
+        c.application.host = host.to_string();
+        c.application.port = 0;
+        c.email_client.base_url = email_server.uri();
+        c.email_client.timeout_milliseconds = 250;
+        c
+    };
 
     let db_pool = configure_database(&config.database).await;
 
@@ -65,7 +74,11 @@ pub async fn spawn_app() -> TestApp {
         app.run().await.expect("server crashed");
     });
 
-    TestApp { address, db_pool }
+    TestApp {
+        address,
+        db_pool,
+        email_server,
+    }
 }
 
 pub async fn configure_database(db_config: &DatabaseSettings) -> PgPool {

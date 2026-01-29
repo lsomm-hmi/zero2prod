@@ -1,6 +1,8 @@
 use crate::helpers;
 
 use axum::http::StatusCode;
+use wiremock::matchers::{method, path};
+use wiremock::{Mock, ResponseTemplate};
 // use sqlx::{Connection, PgConnection};
 // use zero2prod::configuration::get_configuration;
 
@@ -8,6 +10,12 @@ use axum::http::StatusCode;
 async fn subscribe_returns_200_for_valid_form_data() {
     // Arrange
     let test_app = helpers::spawn_app().await;
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .mount(&test_app.email_server)
+        .await;
 
     // Fetch response
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -66,4 +74,24 @@ async fn subscribe_returns_400_for_present_invalid_fields() {
             "The API did not return a 400 Bad Request when the payload was {description}."
         );
     }
+}
+
+#[tokio::test]
+async fn subscribe_sends_a_confirmation_email_for_valid_data() {
+    // Arrange
+    let test_app = helpers::spawn_app().await;
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .expect(1)
+        .mount(&test_app.email_server)
+        .await;
+
+    // Act
+    test_app.post_subscriptions(body.into()).await;
+
+    // Assert
+    // Mock asserts on drop
 }
