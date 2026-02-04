@@ -16,7 +16,7 @@ path = "src/main.rs"
 name = "zero2prod"
 
 [dependencies]
-axum = { version = "0.8.8", features = ["macros"]}
+axum = { version = "0.8.8", features = ["macros"] }
 chrono = "0.4.42"
 claims = "0.8.0"
 config = "0.15.19"
@@ -32,7 +32,7 @@ serde_json = "1.0.149"
 tokio = { version = "1.49.0", features = ["full"] }
 tower = "0.5.2"
 tower-http = { version = "0.6.8", features = ["trace", "request-id"] }
-tracing = { version = "0.1.44", features = ["log"]}
+tracing = { version = "0.1.44", features = ["log"] }
 tracing-bunyan-formatter = "0.3.10"
 tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "registry"] }

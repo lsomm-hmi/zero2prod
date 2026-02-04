@@ -1,6 +1,6 @@
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
-use crate::routes::{health_check, subscribe};
+use crate::routes::{confirm, health_check, subscribe};
 use crate::state::AppState;
 use axum::{
     Router,
@@ -60,6 +60,7 @@ impl Application {
         Router::new()
             .route("/health_check", get(health_check))
             .route("/subscriptions", post(subscribe))
+            .route("/subscriptions/confirm", get(confirm))
             .with_state(state)
             .layer(
                 TraceLayer::new_for_http().make_span_with(|request: &Request<_>| {
