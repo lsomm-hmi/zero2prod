@@ -7,6 +7,7 @@ use axum::{
 };
 use chrono::Utc;
 use sqlx::{Pool, Postgres};
+use url::Url;
 use uuid::Uuid;
 
 #[derive(serde::Deserialize)]
@@ -70,7 +71,7 @@ pub async fn subscribe(
         return StatusCode::INTERNAL_SERVER_ERROR;
     }
 
-    if send_confirmation_email(&email_client, new_subscriber)
+    if send_confirmation_email(&email_client, new_subscriber, state.base_url)
         .await
         .is_err()
     {
@@ -113,10 +114,13 @@ pub async fn insert_subscriber(
 pub async fn send_confirmation_email(
     email_client: &EmailClient,
     new_subscriber: NewSubscriber,
+    base_url: Url,
 ) -> Result<(), reqwest::Error> {
     // Dummy email to new subscriber
     // Ignoring email delivery errors for now
-    let confirmation_link = "https://my-api.com/subscriptions/confirm";
+    let confirmation_link = base_url
+        .join("subscriptions/confirm?subscription_token=mytoken")
+        .expect("Failed to join confirmation path");
     let plain_body = format!(
         "Welcome to our newsletter!<br />\
         Click <a href=\"{}\">here</a> to confirm your subscription.",

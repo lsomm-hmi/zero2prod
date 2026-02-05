@@ -36,8 +36,13 @@ impl Application {
             config.email_client.auth_token,
             timeout,
         );
+        let base_url = config.application.base_url.clone();
 
-        let state = AppState { db, email_client };
+        let state = AppState {
+            db,
+            email_client,
+            base_url,
+        };
 
         let addr = format!("{}:{}", config.application.host, config.application.port);
         let listener = TcpListener::bind(addr).await?;

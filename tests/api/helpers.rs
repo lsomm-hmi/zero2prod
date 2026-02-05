@@ -1,5 +1,6 @@
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use std::sync::LazyLock;
+use url::Url;
 use uuid::Uuid;
 use wiremock::MockServer;
 use zero2prod::{
@@ -26,8 +27,14 @@ static TRACING: LazyLock<()> = LazyLock::new(|| {
 #[allow(dead_code)] // Quiet errors warning about dead code. Struct used in test functions.
 pub struct TestApp {
     pub address: String,
+    pub port: u16,
     pub db_pool: PgPool,
     pub email_server: MockServer,
+}
+
+pub struct ConfirmationLinks {
+    pub html: url::Url,
+    pub plain_text: url::Url,
 }
 
 impl TestApp {
@@ -39,6 +46,28 @@ impl TestApp {
             .send()
             .await
             .expect("Failed to execute request")
+    }
+
+    pub fn get_confirmation_links(&self, email_request: &wiremock::Request) -> ConfirmationLinks {
+        let body: serde_json::Value = serde_json::from_slice(&email_request.body).unwrap();
+
+        // Extract link from request fields
+        let get_link = |s: &str| {
+            let links: Vec<_> = linkify::LinkFinder::new()
+                .links(s)
+                .filter(|l| *l.kind() == linkify::LinkKind::Url)
+                .collect();
+            assert_eq!(links.len(), 1);
+            let raw_link = links[0].as_str().to_owned();
+            let mut confirmation_link = Url::parse(&raw_link).unwrap();
+            assert_eq!(confirmation_link.host_str().unwrap(), "127.0.0.1"); // Make sure it's localhost
+            confirmation_link.set_port(Some(self.port)).unwrap();
+            confirmation_link
+        };
+
+        let html = get_link(&body["HtmlBody"].as_str().unwrap());
+        let plain_text = get_link(&body["TextBody"].as_str().unwrap());
+        ConfirmationLinks { html, plain_text }
     }
 }
 
@@ -68,6 +97,7 @@ pub async fn spawn_app() -> TestApp {
         .await
         .expect("The application should build with config");
     let address = format!("http://{}:{}", host, app.port());
+    let port = app.port();
 
     // Spawn the server
     tokio::spawn(async move {
@@ -76,6 +106,7 @@ pub async fn spawn_app() -> TestApp {
 
     TestApp {
         address,
+        port,
         db_pool,
         email_server,
     }

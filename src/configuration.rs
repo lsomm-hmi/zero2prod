@@ -4,6 +4,7 @@ use sqlx::{
     ConnectOptions,
     postgres::{PgConnectOptions, PgSslMode},
 };
+use url::Url;
 use validator::ValidationErrors;
 
 use crate::domain::SubscriberEmail;
@@ -71,6 +72,7 @@ pub struct ApplicationSettings {
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
+    pub base_url: Url,
 }
 
 pub fn get_configuration() -> Result<Settings, config::ConfigError> {
