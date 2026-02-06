@@ -3814,6 +3814,7 @@ dependencies = [
  "http",
  "linkify",
  "proptest",
+ "rand 0.9.2",
  "reqwest",
  "secrecy",
  "serde",
