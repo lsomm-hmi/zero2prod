@@ -1,6 +1,5 @@
 use crate::helpers::{ConfirmationLinks, spawn_app};
 use axum::http::StatusCode;
-use url::Url;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
