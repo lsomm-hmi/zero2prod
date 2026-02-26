@@ -1,5 +1,6 @@
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
-use crate::email_client::EmailClient;
+use crate::email_client::{EmailClient, EmailClientError};
+use crate::error::AppError;
 use crate::state::AppState;
 use axum::{
     extract::{Form, State},
@@ -28,19 +29,12 @@ impl TryFrom<SubscribeFormData> for NewSubscriber {
         Ok(NewSubscriber { email, name })
     }
 }
-#[derive(Debug)]
+#[derive(Debug, thiserror::Error)]
 pub enum SubscriberError {
+    #[error("Invalid name: {0}")]
     InvalidName(String),
+    #[error("Invalid email: {0}")]
     InvalidEmail(validator::ValidationErrors),
-}
-
-impl std::fmt::Display for SubscriberError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::InvalidName(msg) => write!(f, "Invalid name: {}", msg),
-            Self::InvalidEmail(e) => write!(f, "Invalid email: {}", e),
-        }
-    }
 }
 
 #[axum::debug_handler]
@@ -55,49 +49,28 @@ impl std::fmt::Display for SubscriberError {
 pub async fn subscribe(
     State(state): State<AppState>,
     Form(form_data): Form<SubscribeFormData>,
-) -> StatusCode {
+) -> Result<StatusCode, AppError> {
     let db_pool = &state.db;
     let email_client = &state.email_client;
 
-    let new_subscriber = match form_data.try_into() {
-        // The TryInto trait is automatically implemented for the corresponding type used in TryFrom
-        Ok(subscriber) => subscriber,
-        Err(_) => return StatusCode::BAD_REQUEST,
-    };
+    let new_subscriber = form_data.try_into()?;
 
-    let mut transaction = match db_pool.begin().await {
-        Ok(transaction) => transaction,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
+    let mut transaction = db_pool.begin().await?;
 
-    let subscriber_id = match insert_subscriber(&mut transaction, &new_subscriber).await {
-        Ok(subscriber_id) => subscriber_id,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
+    let subscriber_id = insert_subscriber(&mut transaction, &new_subscriber).await?;
     let subscription_token = generate_subscription_token();
-    if store_token(&mut transaction, subscriber_id, &subscription_token)
-        .await
-        .is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
+    store_token(&mut transaction, subscriber_id, &subscription_token).await?;
+    transaction.commit().await?;
 
-    if transaction.commit().await.is_err() {
-        return StatusCode::INSUFFICIENT_STORAGE;
-    }
-
-    if send_confirmation_email(
-        &email_client,
+    send_confirmation_email(
+        email_client,
         new_subscriber,
         state.base_url,
         &subscription_token,
     )
-    .await
-    .is_err()
-    {
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
-    StatusCode::OK
+    .await?;
+
+    Ok(StatusCode::OK)
 }
 
 #[tracing::instrument(
@@ -137,7 +110,7 @@ pub async fn send_confirmation_email(
     new_subscriber: NewSubscriber,
     base_url: Url,
     subscription_token: &str,
-) -> Result<(), reqwest::Error> {
+) -> Result<(), EmailClientError> {
     // Dummy email to new subscriber
     // Ignoring email delivery errors for now
     let path = format!(

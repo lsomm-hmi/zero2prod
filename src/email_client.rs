@@ -3,6 +3,11 @@
 use crate::domain::SubscriberEmail;
 use reqwest::Client;
 use secrecy::{ExposeSecret, SecretString};
+use thiserror::Error;
+
+#[derive(Debug, Error)]
+#[error("Email client error: {0}")]
+pub struct EmailClientError(#[from] reqwest::Error);
 
 #[derive(Clone)]
 pub struct EmailClient {
@@ -34,7 +39,7 @@ impl EmailClient {
         subject: &str,
         html_content: &str,
         text_content: &str,
-    ) -> Result<(), reqwest::Error> {
+    ) -> Result<(), EmailClientError> {
         let url = format!("{}/email", self.base_url);
         let request_body = SendEmailRequest {
             from: self.sender.as_ref(),
