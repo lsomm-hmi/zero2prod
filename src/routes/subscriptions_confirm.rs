@@ -1,8 +1,18 @@
+use crate::error::AppError;
 use crate::state::AppState;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
 use sqlx::{Pool, Postgres};
 use uuid::Uuid;
+
+#[derive(Debug, thiserror::Error)]
+#[error("Subscription confirmation error: {0}")]
+pub enum SubscriptionConfirmError {
+    #[error("Database error: {0}")]
+    Database(#[from] sqlx::Error),
+    #[error("Invalid subscription token")]
+    SubscriptionToken,
+}
 
 #[derive(serde::Deserialize)]
 pub struct Parameters {
@@ -13,21 +23,17 @@ pub struct Parameters {
 pub async fn confirm(
     State(state): State<AppState>,
     Query(parameters): Query<Parameters>,
-) -> StatusCode {
+) -> Result<StatusCode, AppError> {
     let db_pool = &state.db;
-    let id = match get_subscriber_id_from_token(db_pool, &parameters.subscription_token).await {
-        Ok(id) => id,
-        Err(_) => return StatusCode::INTERNAL_SERVER_ERROR,
-    };
+    let id = get_subscriber_id_from_token(db_pool, &parameters.subscription_token).await?;
+
     match id {
-        None => return StatusCode::UNAUTHORIZED,
+        None => return Err(SubscriptionConfirmError::SubscriptionToken.into()),
         Some(subscriber_id) => {
-            if confirm_subscriber(db_pool, subscriber_id).await.is_err() {
-                return StatusCode::INTERNAL_SERVER_ERROR;
-            }
+            confirm_subscriber(db_pool, subscriber_id).await?;
         }
     }
-    StatusCode::OK
+    Ok(StatusCode::OK)
 }
 
 #[tracing::instrument(name = "Mark subscriber as confirmed", skip(subscriber_id, db_pool))]

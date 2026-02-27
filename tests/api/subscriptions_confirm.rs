@@ -4,7 +4,7 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]
-pub async fn confirmations_without_token_are_rejected_with_400() {
+async fn confirmations_without_token_are_rejected_with_400() {
     // Arrange
     let test_app = spawn_app().await;
 
@@ -18,7 +18,7 @@ pub async fn confirmations_without_token_are_rejected_with_400() {
 }
 
 #[tokio::test]
-pub async fn link_returned_by_subscribe_returns_200_if_called() {
+async fn link_returned_by_subscribe_returns_200_if_called() {
     // Arrange
     let test_app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
@@ -80,4 +80,19 @@ async fn clicking_confirmation_link_confirms_subscriber() {
     assert_eq!(saved.email, "ursula_le_guin@gmail.com");
     assert_eq!(saved.name, "le guin");
     assert_eq!(saved.status, "confirmed");
+}
+
+#[tokio::test]
+async fn invalid_subscription_token_returns_401() {
+    // Arrange
+    let test_app = spawn_app().await;
+    let invalid_token = "THISISNOTAVALIDTOKEN";
+    let path = format!("subscriptions/confirm?subscription_token={}", invalid_token);
+    let confirmation_link = format!("{}/{}", test_app.address, path);
+
+    // Act
+    let response = reqwest::get(confirmation_link).await.unwrap();
+
+    //Assert
+    assert_eq!(StatusCode::UNAUTHORIZED, response.status())
 }

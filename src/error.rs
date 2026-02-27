@@ -1,5 +1,5 @@
 use crate::email_client::EmailClientError;
-use crate::routes::SubscriberError;
+use crate::routes::{SubscriberError, SubscriptionConfirmError};
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
 use thiserror::Error;
@@ -8,10 +8,12 @@ use thiserror::Error;
 pub enum AppError {
     #[error("Database error: {0}")]
     Database(#[from] sqlx::Error),
-    #[error("Email Client error: {0}")]
+    #[error("Email client error: {0}")]
     EmailClient(#[from] EmailClientError),
     #[error("Subscriber error: {0}")]
     Subscriber(#[from] SubscriberError),
+    #[error("Subscription confirmation error: {0}")]
+    SubscriptionConfirm(#[from] SubscriptionConfirmError),
 }
 
 impl IntoResponse for AppError {
@@ -29,6 +31,16 @@ impl IntoResponse for AppError {
                 tracing::error!("Subscriber error: {:?}", e);
                 StatusCode::BAD_REQUEST.into_response()
             }
+            AppError::SubscriptionConfirm(e) => match e {
+                SubscriptionConfirmError::Database(_) => {
+                    tracing::error!("Subscription confirmation database error: {:?}", e);
+                    StatusCode::INTERNAL_SERVER_ERROR.into_response()
+                }
+                SubscriptionConfirmError::SubscriptionToken => {
+                    tracing::error!("Invalid subscription token");
+                    StatusCode::UNAUTHORIZED.into_response()
+                }
+            },
         }
     }
 }
